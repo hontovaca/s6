@@ -2,4 +2,5 @@
 
 redirfd -w 1 /dev/console fdmove -c 2 1
 foreground { echo s6-svscan panicked! message: $@ ... dropping to shell }
+
 cd / emptyenv -p s6-envdir -I /run/env /bin/sh
