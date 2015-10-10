@@ -1,0 +1,3 @@
+#!/bin/sh
+echo "* stage2 started."
+echo "* stage2 initialization done."
