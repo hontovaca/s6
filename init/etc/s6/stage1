@@ -1,0 +1,19 @@
+#!/usr/bin/execlineb -P
+
+# drop the container-provided environment as soon quickly as possible
+/usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
+/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6/env
+
+# docker mount only /dev as tmpfs, so we to link /run, /tmp
+background {
+  foreground { rm -rf /run /tmp }
+  background { ln -s /dev/run / }
+  ln -s /dev/tmp /
+}
+background { cp -aL /etc/s6/run /dev }
+background { mkdir -m 1777 /dev/tmp }
+wait { }
+
+# /tmp available, /run tree ready
+
+emptyenv -p s6-envdir /dev/env sh
