@@ -1,4 +1,4 @@
-#!/usr/bin/execlineb -P
+#!/usr/bin/execlineb -S0
 
 # drop the container-provided environment as soon quickly as possible
 /usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
@@ -13,7 +13,26 @@ background {
 background { cp -aL /etc/s6/run /dev }
 background { mkdir -m 1777 /dev/tmp }
 wait { }
+foreground { mv /dev/env /dev/run }
 
 # /tmp available, /run tree ready
 
-emptyenv -p s6-envdir /dev/env sh
+foreground { mkfifo -m 0600 /run/s6/uncaught-logs }
+foreground { mkdir -pm 2700 /var/log/uncaught }
+foreground {
+  s6-envuidgid -D 65534:65534 nobody
+  s6-chown -U /var/log/uncaught
+}
+
+# if the user provided a command, exec into that with the container env.
+ifelse { test $# -gt 0 } { exec -c s6-envdir /run/env $@ }
+
+background {
+  redirfd -w 2 /run/s6/uncaught-logs fdmove -c 1 2
+  /etc/s6/stage2
+}
+
+# standard trickery to open the pipe before a reader exists
+redirfd -wnb 2 /run/s6/uncaught-logs fdmove -c 1 2
+emptyenv -p
+s6-svscan -t0 /run/service
