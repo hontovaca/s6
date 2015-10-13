@@ -1,24 +1,8 @@
-#!/bin/sh
-
-# this is wacky:
-# - execline isn't good enough at keeping state
-# - sh isn't good enough at waiting on children
-
-# basically we implement a loop by self-execing with +1 args, terminating when
-# this is the only process left or otherwise sleeping for increasing periods.
-# each re-exec goes through execline's wait to clean up zombies.
-
-# we send TERM immediately, KILL after a few seconds.
-
-case $# in
-  1) echo "* stage3 started." ;;
-  2) echo "* sending TERM to all processes."; s6-nuke -ht ;;
-  9) echo "* sending KILL to all processes."; s6-nuke -k ;;
-  *) # maybe exit early on 3-8; otherwise, everything should be dead by 10
-    check() { [ $# -le 1 ] && exit 0; }
-    check /proc/[0-9]*
-    s6-sleep -m $(($# * 100))
-    ;;
-esac
-
-exec /usr/bin/wait -r "" "$0" "$#" "$@"
+#!/usr/bin/execlineb -P
+foreground {
+  printf "%s\n"
+  "* stage3 started."
+  "* sending TERM to all processes."
+}
+foreground { s6-nuke -ht }
+wait { }
