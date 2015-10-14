@@ -1,3 +1,6 @@
-#!/bin/sh
-echo "* stage2 started."
-echo "* stage2 initialization done."
+#!/usr/bin/execlineb -P
+foreground {
+  printf "%s\n"
+  "* stage2 started."
+}
+cp -a /etc/service /run
