@@ -5,27 +5,30 @@
 /usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6/env
 
 # docker mount only /dev as tmpfs, so we to link /run, /tmp
-background {
+ifthenelse { mountpoint -q /run }
+{ cp -a /etc/s6/run / }
+{
+  background { cp -a /etc/s6/run /dev }
+  background { mkdir -m 1777 /dev/tmp }
   foreground { rm -rf /run /tmp }
   background { ln -s /dev/run / }
-  ln -s /dev/tmp /
+  background { ln -s /dev/tmp / }
+  wait { }
 }
-background { cp -aL /etc/s6/run /dev }
-background { mkdir -m 1777 /dev/tmp }
-wait { }
-foreground { mv /dev/env /dev/run }
+foreground { ln -s /dev/env /run }
 
 # /tmp available, /run tree ready
 
+# if the user provided a command, exec into that with the container env.
+ifelse { test $# -gt 0 } { exec -c s6-envdir /run/env $@ }
+
+foreground { mkdir -pm 0700 /run/s6 }
 foreground { mkfifo -m 0600 /run/s6/uncaught-logs }
 foreground { mkdir -pm 2700 /var/log/uncaught }
 foreground {
   s6-envuidgid -D 65534:65534 nobody
   s6-chown -U /var/log/uncaught
 }
-
-# if the user provided a command, exec into that with the container env.
-ifelse { test $# -gt 0 } { exec -c s6-envdir /run/env $@ }
 
 background {
   redirfd -w 2 /run/s6/uncaught-logs fdmove -c 1 2
