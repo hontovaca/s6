@@ -3,4 +3,5 @@ foreground {
   printf "%s\n"
   "* stage2 started."
 }
-cp -a /etc/service /run
+if { cp -a /etc/service /run }
+s6-svscanctl -a /run/service
