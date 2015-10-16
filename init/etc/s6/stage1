@@ -38,4 +38,4 @@ background {
 # standard trickery to open the pipe before a reader exists
 redirfd -wnb 2 /run/s6/uncaught-logs fdmove -c 1 2
 emptyenv -p
-s6-svscan -t0 /run/service
+s6-svscan -St0 /run/service
