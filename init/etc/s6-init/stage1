@@ -2,13 +2,13 @@
 
 # drop the container-provided environment as soon quickly as possible
 /usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
-/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6/env
+/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6-init/env
 
 # docker mount only /dev as tmpfs, so we to link /run, /tmp
 ifthenelse { mountpoint -q /run }
-{ cp -a /etc/s6/run / }
+{ cp -a /etc/s6-init/run / }
 {
-  background { cp -a /etc/s6/run /dev }
+  background { cp -a /etc/s6-init/run /dev }
   background { mkdir -m 1777 /dev/tmp }
   foreground { rm -rf /run /tmp }
   background { ln -s /dev/run / }
@@ -35,7 +35,7 @@ redirfd -wnb 2 /run/s6/uncaught-logs fdmove -c 1 2
 
 background {
   redirfd -w 2 /run/s6/uncaught-logs fdmove -c 1 2
-  /etc/s6/stage2
+  /etc/s6-init/stage2
 }
 
 emptyenv -p
