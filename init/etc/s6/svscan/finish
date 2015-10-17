@@ -1,5 +1,0 @@
-#!/usr/bin/execlineb -S0
-
-ifelse { test $# -le 0 } { .s6-svscan/crash s6-svscan stopped mysteriously }
-
-/etc/s6/stage3 $@
