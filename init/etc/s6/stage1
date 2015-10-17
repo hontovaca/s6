@@ -30,12 +30,13 @@ foreground {
   s6-chown -U /var/log/uncaught
 }
 
+# standard trickery to open the pipe before a reader exists
+redirfd -wnb 2 /run/s6/uncaught-logs fdmove -c 1 2
+
 background {
   redirfd -w 2 /run/s6/uncaught-logs fdmove -c 1 2
   /etc/s6/stage2
 }
 
-# standard trickery to open the pipe before a reader exists
-redirfd -wnb 2 /run/s6/uncaught-logs fdmove -c 1 2
 emptyenv -p
 s6-svscan -St0 /run/service
