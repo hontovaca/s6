@@ -1,5 +1,5 @@
 #!/usr/bin/execlineb -P
-redirfd -r 0 /run/s6/uncaught-logs
+redirfd -r 0 /run/s6/.uncaught-logs
 s6-envuidgid -D 65534:65534 nobody
 s6-applyuidgid -U
 s6-log -bp t /var/log/uncaught
