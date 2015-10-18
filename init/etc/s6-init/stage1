@@ -23,7 +23,7 @@ foreground { ln -s /dev/env /run }
 ifelse { test $# -gt 0 } { exec -c s6-envdir /run/env $@ }
 
 foreground { mkdir -pm 0700 /run/s6 }
-foreground { mkfifo -m 0600 /run/s6/.uncaught-logs }
+foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
 foreground { mkdir -pm 2700 /var/log/uncaught }
 foreground {
   s6-envuidgid -D 65534:65534 nobody
@@ -31,10 +31,10 @@ foreground {
 }
 
 # standard trickery to open the pipe before a reader exists
-redirfd -wnb 2 /run/s6/.uncaught-logs fdmove -c 1 2
+redirfd -wnb 2 /run/s6/uncaught-logs/in fdmove -c 1 2
 
 background {
-  redirfd -w 2 /run/s6/.uncaught-logs fdmove -c 1 2
+  redirfd -w 2 /run/s6/uncaught-logs/in fdmove -c 1 2
   /etc/s6-init/stage2
 }
 
