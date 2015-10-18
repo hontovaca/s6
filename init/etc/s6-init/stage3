@@ -1,4 +1,4 @@
-#!/usr/bin/execlineb -P
+#!/usr/bin/execlineb -S0
 foreground {
   printf "%s\n"
   "* stage3 started: ${1}."
