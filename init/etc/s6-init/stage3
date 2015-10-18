@@ -1,7 +1,7 @@
 #!/usr/bin/execlineb -P
 foreground {
   printf "%s\n"
-  "* stage3 started."
+  "* stage3 started: ${1}."
   "* sending TERM to all processes."
 }
 foreground { s6-nuke -ht }
