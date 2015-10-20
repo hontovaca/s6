@@ -20,7 +20,7 @@ foreground { ln -s /dev/env /run }
 # /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env.
-ifelse { test $# -gt 0 } { exec -c s6-envdir /run/env $@ }
+ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
 foreground { mkdir -pm 0700 /run/s6 }
 foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
