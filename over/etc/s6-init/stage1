@@ -1,25 +1,30 @@
 #!/usr/bin/execlineb -S0
 
-# drop the container-provided environment as soon quickly as possible
+# drop the container-provided environment as soon quickly as possible; the only
+# reliably available tmpfs is /dev, so we dump there and link it under /run
 /usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
 /usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6-init/env
 
-# docker mount only /dev as tmpfs, so we to link /run, /tmp
-ifthenelse { mountpoint -q /run }
-{ cp -a /etc/s6-init/run / }
-{
-  background { cp -a /etc/s6-init/run /dev }
-  background { mkdir -m 1777 /dev/tmp }
-  foreground { rm -rf /run /tmp }
-  background { ln -s /dev/run / }
-  background { ln -s /dev/tmp / }
-  wait { }
+# we have /run, /tmp linked to tmpfs paths because docker only mounts /dev, so
+# we have to create the destination directories
+
+background {
+  if -n { test -e /tmp }
+  backtick -in tmp_dest { readlink /tmp }
+  import -u tmp_dest
+  mkdir -m 1777 $tmp_dest
 }
-foreground { ln -s /dev/env /run }
+background {
+  if -n { test -e /run }
+  backtick -in run_dest { readlink /run }
+  import -u run_dest
+  cp -a /etc/s6-init/run $run_dest
+}
+wait { }
 
 # /tmp available, /run tree ready
 
-# if the user provided a command, exec into that with the container env.
+# if the user provided a command, exec into that with the container env
 ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
 foreground { mkdir -pm 0700 /run/s6 }
