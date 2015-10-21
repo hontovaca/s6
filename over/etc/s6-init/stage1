@@ -7,7 +7,6 @@
 
 # we have /run, /tmp linked to tmpfs paths because docker only mounts /dev, so
 # we have to create the destination directories
-
 background {
   if -n { test -e /tmp }
   backtick -in tmp_dest { readlink /tmp }
@@ -27,7 +26,6 @@ wait { }
 # if the user provided a command, exec into that with the container env
 ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
-foreground { mkdir -pm 0700 /run/s6 }
 foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
 foreground { mkdir -pm 2700 /var/log/uncaught }
 foreground {
