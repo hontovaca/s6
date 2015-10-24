@@ -1,45 +1,56 @@
-#!/usr/bin/execlineb -S0
+#!/usr/bin/miniperl -w
+use 5.016;
+chdir "/";
 
 # drop the container-provided environment as soon quickly as possible; the only
 # reliably available tmpfs is /dev, so we dump there and link it under /run
-/usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
-/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6-init/env
+system "/usr/bin/s6-dumpenv", "/dev/env" and warn "couldn't dump env: $!\n";
+%ENV = qw(PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/);
 
-# we have /run, /tmp linked to tmpfs paths because docker only mounts /dev, so
-# we have to create the destination directories
-background {
-  if -n { test -e /tmp }
-  backtick -in tmp_dest { readlink /tmp }
-  import -u tmp_dest
-  mkdir -m 1777 $tmp_dest
+if (! -e (my $tmp_dest = readlink "tmp" // "tmp")) {
+  mkdir $tmp_dest and chmod 01777, $tmp_dest or warn "couldn't create /tmp: $!\n";
 }
-background {
-  if -n { test -e /run }
-  backtick -in run_dest { readlink /run }
-  import -u run_dest
-  cp -a /etc/s6-init/run $run_dest
+if (! -e (my $run_dest = readlink "run" // "run")) {
+  mkdir $run_dest, 0755 or warn "couldn't create /run: $!\n";
 }
-wait { }
+
+if (my $pid = fork) {
+  waitpid $pid, 0 and $? and warn "couldn't copy to /run: $!\n";
+}
+else {
+  open STDIN, "-|", "tar", "-cC", "/etc/s6-init/run", "."
+    and exec "tar", "-xC", "/run";
+  exit 1;
+}
 
 # /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env
-ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
+@ARGV and exec "/etc/s6-init/user-cmd", @ARGV;
 
-foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
-foreground { mkdir -pm 2700 /var/log/uncaught }
-foreground {
-  s6-envuidgid -D 65534:65534 nobody
-  s6-chown -U /var/log/uncaught
+# we don't have POSIX.pm
+my $fifo = "/run/s6/uncaught-logs/in";
+system "mkfifo", "-m", "0600", $fifo
+  and warn "couldn't create uncaught logs fifo: $!\n";
+mkdir "/var/log/uncaught", 02700
+  or warn "couldn't create uncaught logdir: $!\n";
+chown((getpwnam "nobody")[2,3], "/var/log/uncaught")
+  or warn "couldn't chown uncaught logdir: $!\n";
+
+if (fork) {
+  open STDOUT, ">", $fifo or warn "couldn't redirect stdout: $!\n";
+  open STDERR, ">&STDOUT" or warn "couldn't redirect stderr: $!\n";
+
+  exec "s6-svscan", "-St0", "/run/s6";
+  die "couldn't exec s6-svscan: $!\n";
 }
+else {
+  open my $fh, "<", $fifo or warn "couldn't unblock log pipe: $!\n";
+  close $fh;
 
-# standard trickery to open the pipe before a reader exists
-redirfd -wnb 2 /run/s6/uncaught-logs/in fdmove -c 1 2
+  open STDOUT, ">", $fifo or warn "couldn't redirect stdout: $!\n";
+  open STDERR, ">&STDOUT" or warn "couldn't redirect stderr: $!\n";
 
-background {
-  redirfd -w 2 /run/s6/uncaught-logs/in fdmove -c 1 2
-  /etc/s6-init/stage2
+  exec "/etc/s6-init/stage2";
+  die "couldn't exec stage2: $!\n";
 }
-
-emptyenv -p
-s6-svscan -St0 /run/s6
