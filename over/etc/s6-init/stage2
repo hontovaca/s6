@@ -1,4 +1,4 @@
-#!/usr/bin/execlineb -P
-foreground { echo "* stage2 started." }
-if { cp -a /etc/s6 /run }
-s6-svscanctl -a /run/s6
+#!/bin/sh
+echo "* stage2 started."
+cp -a /etc/s6 /run
+exec s6-svscanctl -a /run/s6
