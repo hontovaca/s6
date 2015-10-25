@@ -32,10 +32,13 @@ else {
 my $fifo = "/run/s6/uncaught-logs/in";
 system "mkfifo", "-m", "0600", $fifo
   and warn "couldn't create uncaught logs fifo: $!\n";
-mkdir "/var/log/uncaught", 02700
-  or warn "couldn't create uncaught logdir: $!\n";
-chown((getpwnam "nobody")[2,3], "/var/log/uncaught")
-  or warn "couldn't chown uncaught logdir: $!\n";
+
+if (! -e "/var/log/uncaught") {
+  mkdir "/var/log/uncaught", 02700
+    or warn "couldn't create uncaught logdir: $!\n";
+  chown((getpwnam "nobody")[2,3], "/var/log/uncaught")
+    or warn "couldn't chown uncaught logdir: $!\n";
+}
 
 if (fork) {
   open STDOUT, ">", $fifo or warn "couldn't redirect stdout: $!\n";
