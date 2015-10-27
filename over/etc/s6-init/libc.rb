@@ -7,5 +7,4 @@ module F_libc
 
   extern 'unsigned int alarm(unsigned int)'
   extern 'int mkfifo(char *, unsigned int)'
-  extern 'void perror(char *)'
 end

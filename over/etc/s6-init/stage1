@@ -32,8 +32,7 @@ fifo = "/run/s6/uncaught-logs/in"
 require '/etc/s6-init/libc' # need ffi mkfifo
 
 if F_libc.mkfifo(fifo, 0600) < 0
-  F_libc.perror "Couldn't create log fifo"
-  abort
+  raise SystemCallError.new fifo, Fiddle.last_error
 end
 
 if !File.exist?(log_dest = "/var/log/uncaught")
