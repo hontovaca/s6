@@ -1,59 +1,59 @@
-#!/usr/bin/miniperl -w
-use 5.016;
-chdir "/";
+#!/usr/bin/ruby
+Dir.chdir "/"
 
 # drop the container-provided environment as soon quickly as possible; the only
 # reliably available tmpfs is /dev, so we dump there and link it under /run
-system "/usr/bin/s6-dumpenv", "/dev/env" and warn "couldn't dump env: $!\n";
-%ENV = qw(PATH /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/);
+spawn "/usr/bin/s6-dumpenv", "/dev/env"
+ENV.clear
+ENV["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/"
 
-if (! -e (my $tmp_dest = readlink "tmp" // "tmp")) {
-  mkdir $tmp_dest and chmod 01777, $tmp_dest or warn "couldn't create /tmp: $!\n";
-}
-if (! -e (my $run_dest = readlink "run" // "run")) {
-  mkdir $run_dest, 0755 or warn "couldn't create /run: $!\n";
-}
+if !File.exist?(tmp_dest = begin File.readlink "tmp" rescue "tmp" end)
+  Dir.mkdir tmp_dest
+  File.chmod 01777, tmp_dest
+end
 
-if (my $pid = fork) {
-  waitpid $pid, 0 and $? and warn "couldn't copy to /run: $!\n";
-}
-else {
-  open STDIN, "-|", "tar", "-cC", "/etc/s6-init/run", "."
-    and exec "tar", "-xC", "/run";
-  exit 1;
-}
+if !File.exist?(run_dest = begin File.readlink "run" rescue "run" end)
+  Dir.mkdir run_dest
+  File.chmod 0755, run_dest
+end
 
-# /tmp available, /run tree ready
+IO.pipe do |r,w|
+  spawn "tar", "-xC", "/run", 0=>r
+  spawn "tar", "-cC", "/etc/s6-init/run", ".", 1=>w
+end
+
+Process.waitall # /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env
-@ARGV and exec "/etc/s6-init/user-cmd", @ARGV;
+ARGV.size > 0 and exec "/etc/s6-init/user-cmd", *ARGV
 
-# we don't have POSIX.pm
-my $fifo = "/run/s6/uncaught-logs/in";
-system "mkfifo", "-m", "0600", $fifo
-  and warn "couldn't create uncaught logs fifo: $!\n";
+fifo = "/run/s6/uncaught-logs/in"
 
-if (! -e "/var/log/uncaught") {
-  mkdir "/var/log/uncaught", 02700
-    or warn "couldn't create uncaught logdir: $!\n";
-  chown((getpwnam "nobody")[2,3], "/var/log/uncaught")
-    or warn "couldn't chown uncaught logdir: $!\n";
-}
+require '/etc/s6-init/libc' # need ffi mkfifo
 
-if (fork) {
-  open STDOUT, ">", $fifo or warn "couldn't redirect stdout: $!\n";
-  open STDERR, ">&STDOUT" or warn "couldn't redirect stderr: $!\n";
+if F_libc.mkfifo(fifo, 0600) < 0
+  F_libc.perror "Couldn't create log fifo"
+  abort
+end
 
-  exec "s6-svscan", "-St0", "/run/s6";
-  die "couldn't exec s6-svscan: $!\n";
-}
-else {
-  open my $fh, "<", $fifo or warn "couldn't unblock log pipe: $!\n";
-  close $fh;
+if !File.exist?(log_dest = "/var/log/uncaught")
+  Dir.mkdir log_dest
+  File.chmod 02700, log_dest
 
-  open STDOUT, ">", $fifo or warn "couldn't redirect stdout: $!\n";
-  open STDERR, ">&STDOUT" or warn "couldn't redirect stderr: $!\n";
+  require 'etc'
+  nobody = Etc.getpwnam "nobody"
+  File.chown nobody.uid, nobody.gid, log_dest
+end
 
-  exec "/etc/s6-init/stage2";
-  die "couldn't exec stage2: $!\n";
-}
+fork do
+  open(fifo).close
+
+  $stdout.reopen fifo, "w"
+  $stderr.reopen $stdout
+
+  exec "/etc/s6-init/stage2"
+end
+
+$stdout.reopen fifo, "w"
+$stderr.reopen $stdout
+exec "s6-svscan", "-St0", "/run/s6"
