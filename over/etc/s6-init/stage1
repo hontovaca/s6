@@ -7,22 +7,23 @@ spawn "/usr/bin/s6-dumpenv", "/dev/env"
 ENV.clear
 ENV["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/"
 
-if !File.exist?(tmp_dest = begin File.readlink "tmp" rescue "tmp" end)
+tmp_dest = begin File.readlink "tmp" rescue "tmp" end
+if !File.exist? tmp_dest
   Dir.mkdir tmp_dest
   File.chmod 01777, tmp_dest
 end
 
-if !File.exist?(run_dest = begin File.readlink "run" rescue "run" end)
+run_dest = begin File.readlink "run" rescue "run" end
+if !File.exist? run_dest
   Dir.mkdir run_dest
   File.chmod 0755, run_dest
 end
 
-IO.pipe do |r,w|
-  spawn "tar", "-xC", "/run", 0=>r
-  spawn "tar", "-cC", "/etc/s6-init/run", ".", 1=>w
+IO.popen ["tar", "-cC", "/etc/s6-init/run", "."] do |p|
+  system "tar", "-xC", "/run", 0=>p
 end
 
-Process.waitall # /tmp available, /run tree ready
+# /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env
 ARGV.size > 0 and exec "/etc/s6-init/user-cmd", *ARGV
@@ -39,7 +40,8 @@ end
 
 Mkfifo.mkfifo(fifo, 0600) >= 0 or SystemCallError.new fifo, Fiddle.last_error
 
-if !File.exist?(log_dest = "/var/log/uncaught")
+log_dest = "/var/log/uncaught"
+if !File.exist? log_dest
   Dir.mkdir log_dest
   File.chmod 02700, log_dest
 
@@ -50,13 +52,7 @@ end
 
 fork do
   open(fifo).close
-
-  $stdout.reopen fifo, "w"
-  $stderr.reopen $stdout
-
-  exec "/etc/s6-init/stage2"
+  exec "/etc/s6-init/stage2", 1=>fifo, 2=>[:child,1]
 end
 
-$stdout.reopen fifo, "w"
-$stderr.reopen $stdout
-exec "s6-svscan", "-St0", "/run/s6"
+exec "s6-svscan", "-St0", "/run/s6", 1=>fifo, 2=>[:child,1]
