@@ -29,11 +29,15 @@ ARGV.size > 0 and exec "/etc/s6-init/user-cmd", *ARGV
 
 fifo = "/run/s6/uncaught-logs/in"
 
-require '/etc/s6-init/libc' # need ffi mkfifo
+module Mkfifo
+  require 'fiddle/import'
+  extend Fiddle::Importer
 
-if F_libc.mkfifo(fifo, 0600) < 0
-  raise SystemCallError.new fifo, Fiddle.last_error
+  dlload '/bin/sh' # XXX how to find libc
+  extern 'int mkfifo(char *, unsigned int)'
 end
+
+Mkfifo.mkfifo(fifo, 0600) >= 0 or SystemCallError.new fifo, Fiddle.last_error
 
 if !File.exist?(log_dest = "/var/log/uncaught")
   Dir.mkdir log_dest
