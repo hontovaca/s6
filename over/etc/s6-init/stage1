@@ -1,58 +1,45 @@
-#!/usr/bin/ruby
-Dir.chdir "/"
+#!/usr/bin/execlineb -S0
 
 # drop the container-provided environment as soon quickly as possible; the only
 # reliably available tmpfs is /dev, so we dump there and link it under /run
-spawn "/usr/bin/s6-dumpenv", "/dev/env"
-ENV.clear
-ENV["PATH"] = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin/"
+/usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
+/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6-init/env
 
-tmp_dest = begin File.readlink "tmp" rescue "tmp" end
-if !File.exist? tmp_dest
-  Dir.mkdir tmp_dest
-  File.chmod 01777, tmp_dest
-end
-
-run_dest = begin File.readlink "run" rescue "run" end
-if !File.exist? run_dest
-  Dir.mkdir run_dest
-  File.chmod 0755, run_dest
-end
-
-IO.popen ["tar", "-cC", "/etc/s6-init/run", "."] do |p|
-  system "tar", "-xC", "/run", 0=>p
-end
+# we have /run, /tmp linked to tmpfs paths because docker only mounts /dev, so
+# we have to create the destination directories
+background {
+  if -n { test -e /tmp }
+  backtick -in tmp_dest { readlink /tmp }
+  import -u tmp_dest
+  mkdir -m 1777 $tmp_dest
+}
+background {
+  if -n { test -e /run }
+  backtick -in run_dest { readlink /run }
+  import -u run_dest
+  cp -a /etc/s6-init/run $run_dest
+}
+wait { }
 
 # /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env
-ARGV.size > 0 and exec "/etc/s6-init/user-cmd", *ARGV
+ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
-fifo = "/run/s6/uncaught-logs/in"
+foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
+foreground { mkdir -pm 2700 /var/log/uncaught }
+foreground {
+  s6-envuidgid -D 65534:65534 nobody
+  s6-chown -U /var/log/uncaught
+}
 
-module Mkfifo
-  require 'fiddle/import'
-  extend Fiddle::Importer
+# standard trickery to open the pipe before a reader exists
+redirfd -wnb 2 /run/s6/uncaught-logs/in fdmove -c 1 2
 
-  dlload '/bin/sh' # XXX how to find libc
-  extern 'int mkfifo(char *, unsigned int)'
-end
+background {
+  redirfd -w 2 /run/s6/uncaught-logs/in fdmove -c 1 2
+  /etc/s6-init/stage2
+}
 
-Mkfifo.mkfifo(fifo, 0600) >= 0 or SystemCallError.new fifo, Fiddle.last_error
-
-log_dest = "/var/log/uncaught"
-if !File.exist? log_dest
-  Dir.mkdir log_dest
-  File.chmod 02700, log_dest
-
-  require 'etc'
-  nobody = Etc.getpwnam "nobody"
-  File.chown nobody.uid, nobody.gid, log_dest
-end
-
-fork do
-  open(fifo).close
-  exec "/etc/s6-init/stage2", 1=>fifo, 2=>[:child,1]
-end
-
-exec "s6-svscan", "-St0", "/run/s6", 1=>fifo, 2=>[:child,1]
+emptyenv -p
+s6-svscan -St0 /run/s6
