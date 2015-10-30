@@ -1,45 +1,40 @@
 #!/usr/bin/execlineb -S0
 
-# drop the container-provided environment as soon quickly as possible; the only
-# reliably available tmpfs is /dev, so we dump there and link it under /run
-/usr/bin/foreground { /usr/bin/s6-dumpenv /dev/env }
-/usr/bin/emptyenv /usr/bin/s6-envdir /etc/s6-init/env
+# save the environment into /dev (only tmpfs available), then normalise it
+/usr/bin/background { /usr/bin/s6-dumpenv /dev/env }
+/usr/bin/emptyenv /usr/bin/export PATH
+"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
-# we have /run, /tmp linked to tmpfs paths because docker only mounts /dev, so
-# we have to create the destination directories
-background {
-  if -n { test -e /tmp }
-  backtick -in tmp_dest { readlink /tmp }
-  import -u tmp_dest
-  mkdir -m 1777 $tmp_dest
+# we have to create the destination directories because docker only mounts /dev
+if {
+  backtick -in dest { readlink /run }
+  import -u dest
+  if { mkdir -p $dest }
+  pipeline { tar cC /etc/s6-init/run . } tar xC /run
 }
-background {
-  if -n { test -e /run }
-  backtick -in run_dest { readlink /run }
-  import -u run_dest
-  cp -a /etc/s6-init/run $run_dest
+if {
+  backtick -in dest { readlink /tmp }
+  import -u dest
+  mkdir -pm 1777 $dest
 }
-wait { }
-
-# /tmp available, /run tree ready
 
 # if the user provided a command, exec into that with the container env
 ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
-foreground { mkfifo -m 0600 /run/s6/uncaught-logs/in }
-foreground { mkdir -pm 2700 /var/log/uncaught }
-foreground {
-  s6-envuidgid -D 65534:65534 nobody
-  s6-chown -U /var/log/uncaught
-}
+# otherwise, set up the root of the logging chain and boot into s6-svscan
+define fifo /run/s6/uncaught-logs/in
+define dest /var/log/uncaught
 
-# standard trickery to open the pipe before a reader exists
-redirfd -wnb 2 /run/s6/uncaught-logs/in fdmove -c 1 2
+if { mkfifo -m 0600 $fifo }
+if { mkdir -pm 2700 $dest }
+if { chown nobody:nobody $dest }
 
+# fifo trickery allows log collector to start up before unblocking stage2
 background {
-  redirfd -w 2 /run/s6/uncaught-logs/in fdmove -c 1 2
+  redirfd -r 0 $fifo fdclose 0
+  redirfd -w 2 $fifo fdmove -c 1 2
   /etc/s6-init/stage2
 }
 
-emptyenv -p
+redirfd -w 2 $fifo fdmove -c 1 2
 s6-svscan -St0 /run/s6
