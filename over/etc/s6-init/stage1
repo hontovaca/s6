@@ -23,11 +23,10 @@ ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
 # otherwise, set up the root of the logging chain and boot into s6-svscan
 define fifo /run/s6/uncaught-logs/in
-define dest /var/log/uncaught
 
 if { mkfifo -m 0600 $fifo }
-if { mkdir -pm 2700 $dest }
-if { chown nobody:nobody $dest }
+if { chown root:daemon /var/log }
+if { chmod 3775 /var/log }
 
 # fifo trickery allows log collector to start up before unblocking stage2
 background {

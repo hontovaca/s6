@@ -1,7 +1,7 @@
 #!/usr/bin/execlineb -P
 fdmove 2 0 fdmove -c 1 2
 redirfd -r 0 in
-s6-setuidgid nobody
+s6-setuidgid daemon
 s6-log -bp
 t /var/log/uncaught
 T 1
