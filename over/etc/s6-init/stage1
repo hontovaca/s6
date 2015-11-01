@@ -26,7 +26,7 @@ define fifo /run/s6/uncaught-logs/in
 
 if { mkfifo -m 0600 $fifo }
 if { chown root:daemon /var/log }
-if { chmod 2775 /var/log }
+if { chmod 3775 /var/log }
 
 # fifo trickery allows log collector to start up before unblocking stage2
 background {
