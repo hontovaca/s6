@@ -21,6 +21,9 @@ if {
 # if the user provided a command, exec into that with the container env
 ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
+# dup stderr (i.e. emergency log) to fd0, for uncaught-logs to fetch
+fdmove -c 0 2
+
 # otherwise, set up the root of the logging chain and boot into s6-svscan
 define fifo /run/s6/uncaught-logs/in
 
