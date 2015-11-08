@@ -1,0 +1,11 @@
+#!/bin/sh
+set -e
+
+rmdir /run /tmp
+ln -s dev/run
+ln -s dev/tmp
+
+apk -U add s6 s6-portable-utils
+rm -f /var/cache/apk/*
+
+rm "$0"
