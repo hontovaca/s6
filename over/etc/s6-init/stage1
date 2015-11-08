@@ -4,6 +4,7 @@
 /usr/bin/background { /usr/bin/s6-dumpenv /dev/env }
 /usr/bin/emptyenv /usr/bin/export PATH
 "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+cd /
 
 # we have to create the destination directories because docker only mounts /dev
 if {
