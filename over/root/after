@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-rmdir /run /tmp
+rmdir /run /tmp /media/*
 ln -s dev/run
 ln -s dev/tmp
 
