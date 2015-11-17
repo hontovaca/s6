@@ -1,9 +1,8 @@
-#!/usr/bin/execlineb -S0
+#!/bin/execlineb -S0
 
 # save the environment into /dev (only tmpfs available), then normalise it
-/usr/bin/background { /usr/bin/s6-dumpenv /dev/env }
-/usr/bin/emptyenv /usr/bin/export PATH
-"/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+background { s6-dumpenv /dev/env }
+env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 cd /
 
 # we have to create the destination directories because docker only mounts /dev
