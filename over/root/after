@@ -5,7 +5,6 @@ rmdir /run /tmp /media/*
 ln -s dev/run
 ln -s dev/tmp
 
-apk -U add s6 s6-portable-utils
-rm -f /var/cache/apk/*
+apk --no-cache add s6 s6-portable-utils
 
 rm "$0"
