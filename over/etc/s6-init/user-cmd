@@ -1,2 +1,0 @@
-#!/bin/execlineb -S0
-exec -c s6-envdir /run/env $@

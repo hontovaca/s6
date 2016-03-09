@@ -1,5 +1,6 @@
 FROM vaca/alpine
 
-COPY over /
-RUN ["/root/after"]
-ENTRYPOINT ["init"]
+RUN ["apk", "--no-cache", "add", "s6", "s6-portable-utils"]
+COPY ["over", "/"]
+
+CMD ["init"]

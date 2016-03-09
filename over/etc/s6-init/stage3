@@ -4,5 +4,6 @@ foreground {
   "* stage3 started: ${1}."
   "* sending TERM to all processes."
 }
+# this is sufficient under docker, we'll be killed after a configurable timeout
 foreground { s6-nuke -ht }
 wait { }

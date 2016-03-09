@@ -1,25 +1,12 @@
 #!/bin/execlineb -S0
 
-# save the environment into /dev (only tmpfs available), then normalise it
-background { s6-dumpenv /dev/env }
+# clean up tempdirs; this is safe even if they're mounted as tmpfs
+if { find /run /tmp -mindepth 1 -delete }
+if { cp -as /etc/s6-init/run / }
+
+# save the environment before we clean it up in case any children want it
+background { s6-dumpenv /run/env }
 env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-cd /
-
-# we have to create the destination directories because docker only mounts /dev
-if {
-  backtick -in dest { readlink /run }
-  import -u dest
-  if { mkdir -p $dest }
-  pipeline { tar cC /etc/s6-init/run . } tar xC /run
-}
-if {
-  backtick -in dest { readlink /tmp }
-  import -u dest
-  mkdir -pm 1777 $dest
-}
-
-# if the user provided a command, exec into that with the container env
-ifelse { test $# -gt 0 } { /etc/s6-init/user-cmd $@ }
 
 # dup stderr (i.e. emergency log) to fd0, for uncaught-logs to fetch
 fdmove -c 0 2
@@ -33,10 +20,10 @@ if { chmod 3775 /var/log }
 
 # fifo trickery allows log collector to start up before unblocking stage2
 background {
-  redirfd -r 0 $fifo fdclose 0
+  redirfd -r 0 $fifo redirfd -r 0 /dev/null
   redirfd -w 2 $fifo fdmove -c 1 2
   /etc/s6-init/stage2
 }
 
 redirfd -w 2 $fifo fdmove -c 1 2
-s6-svscan -St0 /run/s6
+emptyenv -p s6-svscan -St0 /run/s6
