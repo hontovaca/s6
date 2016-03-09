@@ -18,7 +18,11 @@ if { mkfifo -m 0600 $fifo }
 if { chown root:daemon /var/log }
 if { chmod 3775 /var/log }
 
-# fifo trickery allows log collector to start up before unblocking stage2
+# fifo trickery unblocks pid 1 early so it can start the log collector, which
+# then unblocks stage2. this ordering may look wrong, but I've proven that it
+# blocks/unblocks correctly provided we have just the two processes running.
+# the initial scandir *should not* provide any services besides the catch-all
+# logger; additional services should start in stage2, *after* logger is up.
 background {
   redirfd -r 0 $fifo redirfd -r 0 /dev/null
   redirfd -w 2 $fifo fdmove -c 1 2
