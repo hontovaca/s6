@@ -8,15 +8,13 @@ if { cp -as /etc/s6-init/run / }
 background { s6-dumpenv /run/env }
 env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
-# dup stderr (i.e. emergency log) to fd0, for uncaught-logs to fetch
-fdmove -c 0 2
-
-# otherwise, set up the root of the logging chain and boot into s6-svscan
-define fifo /run/s6/uncaught-logs/in
-
-if { mkfifo -m 0600 $fifo }
+# set up the root of the logging chain and boot into s6-svscan
 if { chown root:daemon /var/log }
 if { chmod 3775 /var/log }
+
+# precreate the fifo; we need to redirect to it before we can start s6-svscan
+define fifo /run/s6/uncaught-logs/in
+if { mkfifo -m 0600 $fifo }
 
 # fifo trickery unblocks pid 1 early so it can start the log collector, which
 # then unblocks stage2. this ordering may look wrong, but I've proven that it
@@ -29,5 +27,6 @@ background {
   /etc/s6-init/stage2
 }
 
-redirfd -w 2 $fifo fdmove -c 1 2
+# dup stderr to fd0 so that we don't lose it when reopening fd2 to the pipe
+fdmove -c 0 2 redirfd -w 2 $fifo fdmove -c 1 2
 emptyenv -p s6-svscan -St0 /run/s6
